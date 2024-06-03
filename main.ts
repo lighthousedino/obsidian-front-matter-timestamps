@@ -65,7 +65,7 @@ export default class UpdateModifiedTimePlugin extends Plugin {
 
 			const yamlRegex = /^---\n([\s\S]*?)\n---/;
 			const match = textContent.match(yamlRegex);
-			const currentTime = moment().utc().format("YYYY-MM-DDTHH:mm:ss[Z]");
+			const currentTime = moment().format("YYYY-MM-DDTHH:mm:ssZ");
 
 			if (!match) {
 				if (this.settings.debug) {
