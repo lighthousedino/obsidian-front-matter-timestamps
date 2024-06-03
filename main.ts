@@ -20,13 +20,12 @@ export default class UpdateModifiedTimePlugin extends Plugin {
 	settings: UpdateModifiedTimeSettings;
 
 	async onload() {
-		console.log("Loading Update Modified Time plugin");
 		await this.loadSettings();
 
 		// Add a command to manually update the modified time
 		this.addCommand({
 			id: "update-modified-time",
-			name: "Update Modified Time",
+			name: "Update modified time",
 			checkCallback: (checking: boolean) => {
 				const markdownView =
 					this.app.workspace.getActiveViewOfType(MarkdownView);
@@ -45,61 +44,83 @@ export default class UpdateModifiedTimePlugin extends Plugin {
 	}
 
 	async updateModifiedTime(file: TFile) {
-		if (this.settings.debug)
+		if (this.settings.debug) {
 			console.log(`Updating modified time for file: ${file.path}`);
+		}
 
 		if (file.extension !== "md") {
-			if (this.settings.debug)
+			if (this.settings.debug) {
 				console.log("File is not a markdown file, skipping.");
+			}
 			return;
 		}
 
 		try {
-			const fileContent = await this.app.vault.read(file);
-			if (this.settings.debug)
+			const fileContent = await this.app.vault.readBinary(file);
+			const textContent = new TextDecoder("utf-8").decode(fileContent);
+
+			if (this.settings.debug) {
 				console.log("File content read successfully");
+			}
+
 			const yamlRegex = /^---\n([\s\S]*?)\n---/;
-			const match = fileContent.match(yamlRegex);
+			const match = textContent.match(yamlRegex);
 			const currentTime = moment().utc().format("YYYY-MM-DDTHH:mm:ss[Z]");
 
 			if (!match) {
-				if (this.settings.debug)
+				if (this.settings.debug) {
 					console.log("No YAML front matter found, skipping update.");
+				}
 				return;
 			}
 
 			const yamlContent = match[1];
 			let newYamlContent;
+			let updatedYaml = false;
+
 			if (yamlContent.includes("modified:")) {
-				if (this.settings.debug)
+				if (this.settings.debug) {
 					console.log("Existing modified field found, updating it");
+				}
 				newYamlContent = yamlContent.replace(
 					/modified: .*/,
 					`modified: ${currentTime}`
 				);
+				updatedYaml = true;
 			} else {
-				if (this.settings.debug)
+				if (this.settings.debug) {
 					console.log("No modified field found, adding it");
+				}
 				newYamlContent = yamlContent + `\nmodified: ${currentTime}`;
+				updatedYaml = true;
 			}
 
-			const newFileContent = fileContent.replace(
-				yamlRegex,
-				`---\n${newYamlContent}\n---`
-			);
+			if (updatedYaml) {
+				const newFileContent = textContent.replace(
+					yamlRegex,
+					`---\n${newYamlContent}\n---`
+				);
 
-			if (this.settings.debug) {
-				console.log("New file content prepared");
-				// console.log("Old File Content:", fileContent);
-				// console.log("New File Content:", newFileContent);
+				if (this.settings.debug) {
+					console.log("New file content prepared");
+				}
+
+				await this.app.vault.modifyBinary(
+					file,
+					new TextEncoder().encode(newFileContent)
+				);
+				if (this.settings.debug) {
+					console.log("File content updated and saved");
+				}
+			} else {
+				if (this.settings.debug) {
+					console.log("No changes made to the YAML front matter");
+				}
 			}
-
-			await this.app.vault.modify(file, newFileContent);
-			if (this.settings.debug)
-				console.log("File content updated and saved");
 		} catch (error) {
-			if (this.settings.debug)
+			if (this.settings.debug) {
 				console.error("Error updating file", error);
+			}
 		}
 	}
 
