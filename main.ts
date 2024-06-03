@@ -18,14 +18,29 @@ const DEFAULT_SETTINGS: UpdateModifiedTimeSettings = {
 	autoUpdate: true,
 };
 
+async function calculateChecksum(file: TFile, vault: any): Promise<string> {
+	const fileContent = await vault.readBinary(file);
+	const textContent = new TextDecoder("utf-8").decode(fileContent);
+	const buffer = new TextEncoder().encode(textContent);
+	const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+	const hashArray = Array.from(new Uint8Array(hashBuffer));
+	const hashHex = hashArray
+		.map((b) => b.toString(16).padStart(2, "0"))
+		.join("");
+	return hashHex;
+}
+
 export default class UpdateModifiedTimePlugin extends Plugin {
-	private lastActiveFile: TFile | null = null;
 	settings: UpdateModifiedTimeSettings;
+	private lastActiveFile: TFile | null = null;
+	private lastChecksum: string | null = null;
 
 	async onload() {
 		await this.loadSettings();
 
-		// Add a command to manually update the modified time
+		this.addSettingTab(new UpdateModifiedTimeSettingTab(this.app, this));
+
+		// Register the command to manually update modified time
 		this.addCommand({
 			id: "update-modified-time",
 			name: "Update modified time",
@@ -55,24 +70,37 @@ export default class UpdateModifiedTimePlugin extends Plugin {
 				)
 			);
 		}
-
-		// Add settings tab
-		this.addSettingTab(new UpdateModifiedTimeSettingTab(this.app, this));
 	}
 
-	handleFileChange() {
+	async handleFileChange() {
 		const markdownView =
 			this.app.workspace.getActiveViewOfType(MarkdownView);
 		const currentFile = markdownView ? markdownView.file : null;
 
-		if (this.lastActiveFile && this.lastActiveFile !== currentFile) {
-			this.updateModifiedTime(this.lastActiveFile);
+		if (this.lastActiveFile) {
+			const currentChecksum = await calculateChecksum(
+				this.lastActiveFile,
+				this.app.vault
+			);
+			if (this.lastChecksum !== currentChecksum) {
+				await this.updateModifiedTime(this.lastActiveFile);
+			}
 		}
 
 		this.lastActiveFile = currentFile;
+		this.lastChecksum = currentFile
+			? await calculateChecksum(currentFile, this.app.vault)
+			: null;
 	}
 
-	async updateModifiedTime(file: TFile) {
+	async updateModifiedTime(file: TFile | null) {
+		if (!file) {
+			if (this.settings.debug) {
+				console.log("No file provided, skipping update.");
+			}
+			return;
+		}
+
 		if (this.settings.debug) {
 			console.log(`Updating modified time for file: ${file.path}`);
 		}
