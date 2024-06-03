@@ -77,47 +77,56 @@ export default class UpdateModifiedTimePlugin extends Plugin {
 			this.app.workspace.getActiveViewOfType(MarkdownView);
 		const currentFile = markdownView ? markdownView.file : null;
 
-		if (this.lastActiveFile) {
-			const currentChecksum = await calculateChecksum(
-				this.lastActiveFile,
-				this.app.vault
-			);
-			if (this.lastChecksum !== currentChecksum) {
-				await this.updateModifiedTime(this.lastActiveFile);
+		// Check if the last active file exists before calculating checksum
+		if (this.lastActiveFile && this.lastActiveFile.path) {
+			try {
+				const currentChecksum = await calculateChecksum(
+					this.lastActiveFile,
+					this.app.vault
+				);
+				if (this.lastChecksum !== currentChecksum) {
+					await this.updateModifiedTime(this.lastActiveFile);
+				}
+			} catch (error) {
+				if (this.settings.debug) {
+					console.log(
+						`Error checking checksum for ${this.lastActiveFile.path}:`,
+						error
+					);
+				}
 			}
 		}
 
+		// Update the last active file and checksum
 		this.lastActiveFile = currentFile;
-		this.lastChecksum = currentFile
-			? await calculateChecksum(currentFile, this.app.vault)
-			: null;
+		this.lastChecksum =
+			currentFile && currentFile.path
+				? await calculateChecksum(currentFile, this.app.vault)
+				: null;
 	}
 
 	async updateModifiedTime(file: TFile | null) {
-		if (!file) {
+		if (!file || !file.path) {
 			if (this.settings.debug) {
-				console.log("No file provided, skipping update.");
-			}
-			return;
-		}
-
-		if (this.settings.debug) {
-			console.log(`Updating modified time for file: ${file.path}`);
-		}
-
-		if (file.extension !== "md") {
-			if (this.settings.debug) {
-				console.log("File is not a markdown file, skipping.");
+				console.log("No valid file provided, skipping update.");
 			}
 			return;
 		}
 
 		try {
+			// Try reading the file to ensure it exists
 			const fileContent = await this.app.vault.readBinary(file);
 			const textContent = new TextDecoder("utf-8").decode(fileContent);
 
 			if (this.settings.debug) {
 				console.log("File content read successfully");
+			}
+
+			if (file.extension !== "md") {
+				if (this.settings.debug) {
+					console.log("File is not a markdown file, skipping.");
+				}
+				return;
 			}
 
 			const yamlRegex = /^---\n([\s\S]*?)\n---/;
@@ -176,7 +185,7 @@ export default class UpdateModifiedTimePlugin extends Plugin {
 			}
 		} catch (error) {
 			if (this.settings.debug) {
-				console.error("Error updating file", error);
+				console.error(`Error updating file ${file.path}`, error);
 			}
 		}
 	}
