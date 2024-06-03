@@ -221,7 +221,7 @@ class UpdateModifiedTimeSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName("Debug Mode")
+			.setName("Debug mode")
 			.setDesc("Enable debug mode to display detailed logs")
 			.addToggle((toggle) =>
 				toggle
@@ -233,7 +233,7 @@ class UpdateModifiedTimeSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Automatic Update")
+			.setName("Automatic update")
 			.setDesc("Automatically update modified time on file change")
 			.addToggle((toggle) =>
 				toggle
