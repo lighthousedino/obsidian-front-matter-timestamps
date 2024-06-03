@@ -10,13 +10,16 @@ import {
 
 interface UpdateModifiedTimeSettings {
 	debug: boolean;
+	autoUpdate: boolean;
 }
 
 const DEFAULT_SETTINGS: UpdateModifiedTimeSettings = {
 	debug: false,
+	autoUpdate: true,
 };
 
 export default class UpdateModifiedTimePlugin extends Plugin {
+	private lastActiveFile: TFile | null = null;
 	settings: UpdateModifiedTimeSettings;
 
 	async onload() {
@@ -39,8 +42,34 @@ export default class UpdateModifiedTimePlugin extends Plugin {
 			},
 		});
 
+		// Register event to listen for when the user switches files or closes a file
+		if (this.settings.autoUpdate) {
+			this.registerEvent(
+				this.app.workspace.on("active-leaf-change", () =>
+					this.handleFileChange()
+				)
+			);
+			this.registerEvent(
+				this.app.workspace.on("file-open", () =>
+					this.handleFileChange()
+				)
+			);
+		}
+
 		// Add settings tab
 		this.addSettingTab(new UpdateModifiedTimeSettingTab(this.app, this));
+	}
+
+	handleFileChange() {
+		const markdownView =
+			this.app.workspace.getActiveViewOfType(MarkdownView);
+		const currentFile = markdownView ? markdownView.file : null;
+
+		if (this.lastActiveFile && this.lastActiveFile !== currentFile) {
+			this.updateModifiedTime(this.lastActiveFile);
+		}
+
+		this.lastActiveFile = currentFile;
 	}
 
 	async updateModifiedTime(file: TFile) {
@@ -162,6 +191,18 @@ class UpdateModifiedTimeSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.debug)
 					.onChange(async (value) => {
 						this.plugin.settings.debug = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Automatic Update")
+			.setDesc("Automatically update modified time on file change")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.autoUpdate)
+					.onChange(async (value) => {
+						this.plugin.settings.autoUpdate = value;
 						await this.plugin.saveSettings();
 					})
 			);
