@@ -113,13 +113,6 @@ export default class UpdateModifiedTimePlugin extends Plugin {
 		}
 
 		try {
-			// Try reading the file to ensure it exists
-			const fileContent = await this.app.vault.read(file);
-
-			if (this.settings.debug) {
-				console.log("File content read successfully");
-			}
-
 			if (file.extension !== "md") {
 				if (this.settings.debug) {
 					console.log("File is not a markdown file, skipping.");
@@ -127,60 +120,24 @@ export default class UpdateModifiedTimePlugin extends Plugin {
 				return;
 			}
 
-			const yamlRegex = /^---\n([\s\S]*?)\n---/;
-			const match = fileContent.match(yamlRegex);
 			const currentTime = moment().format("YYYY-MM-DDTHH:mm:ssZ");
 
-			if (!match) {
-				if (this.settings.debug) {
-					console.log("No YAML front matter found, skipping update.");
+			await this.app.fileManager.processFrontMatter(
+				file,
+				(frontmatter) => {
+					frontmatter.modified = currentTime;
 				}
-				return;
-			}
+			);
 
-			const yamlContent = match[1];
-			let newYamlContent;
-			let updatedYaml = false;
-
-			if (yamlContent.includes("modified:")) {
-				if (this.settings.debug) {
-					console.log("Existing modified field found, updating it");
-				}
-				newYamlContent = yamlContent.replace(
-					/modified: .*/,
-					`modified: ${currentTime}`
-				);
-				updatedYaml = true;
-			} else {
-				if (this.settings.debug) {
-					console.log("No modified field found, adding it");
-				}
-				newYamlContent = yamlContent + `\nmodified: ${currentTime}`;
-				updatedYaml = true;
-			}
-
-			if (updatedYaml) {
-				const newFileContent = fileContent.replace(
-					yamlRegex,
-					`---\n${newYamlContent}\n---`
-				);
-
-				if (this.settings.debug) {
-					console.log("New file content prepared");
-				}
-
-				await this.app.vault.modify(file, newFileContent);
-				if (this.settings.debug) {
-					console.log("File content updated and saved");
-				}
-			} else {
-				if (this.settings.debug) {
-					console.log("No changes made to the YAML front matter");
-				}
+			if (this.settings.debug) {
+				console.log("File frontmatter updated");
 			}
 		} catch (error) {
 			if (this.settings.debug) {
-				console.error(`Error updating file ${file.path}`, error);
+				console.error(
+					`Error updating frontmatter for file ${file.path}`,
+					error
+				);
 			}
 		}
 	}
