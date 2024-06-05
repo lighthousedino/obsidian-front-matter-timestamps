@@ -173,18 +173,6 @@ class UpdateModifiedTimeSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName("Debug mode")
-			.setDesc("Enable debug mode to display detailed logs")
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.debug)
-					.onChange(async (value) => {
-						this.plugin.settings.debug = value;
-						await this.plugin.saveSettings();
-					})
-			);
-
-		new Setting(containerEl)
 			.setName("Automatic update")
 			.setDesc("Automatically update modified time on file change")
 			.addToggle((toggle) =>
@@ -192,6 +180,18 @@ class UpdateModifiedTimeSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.autoUpdate)
 					.onChange(async (value) => {
 						this.plugin.settings.autoUpdate = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Debug mode")
+			.setDesc("Enable debug mode to display detailed logs")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.debug)
+					.onChange(async (value) => {
+						this.plugin.settings.debug = value;
 						await this.plugin.saveSettings();
 					})
 			);
