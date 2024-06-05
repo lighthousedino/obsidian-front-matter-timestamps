@@ -2,6 +2,7 @@ import {
 	App,
 	Plugin,
 	TFile,
+	Vault,
 	moment,
 	MarkdownView,
 	PluginSettingTab,
@@ -18,7 +19,7 @@ const DEFAULT_SETTINGS: UpdateModifiedTimeSettings = {
 	autoUpdate: true,
 };
 
-async function calculateChecksum(file: TFile, vault: any): Promise<string> {
+async function calculateChecksum(file: TFile, vault: Vault): Promise<string> {
 	const fileContent = await vault.read(file);
 	const buffer = new TextEncoder().encode(fileContent);
 	const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
