@@ -76,9 +76,11 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 		// Register event to handle new file creation
 		if (this.settings.autoAddTimestamps) {
 			this.registerEvent(
-				this.app.vault.on("create", (file) =>
-					this.handleFileCreate(file)
-				)
+				this.app.vault.on("create", (file) => {
+					if (file instanceof TFile) {
+						this.handleFileCreate(file);
+					}
+				})
 			);
 		}
 	}

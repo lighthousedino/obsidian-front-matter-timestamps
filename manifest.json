@@ -1,7 +1,7 @@
 {
 	"id": "front-matter-timestamps",
 	"name": "Front Matter Timestamps",
-	"version": "1.1.0",
+	"version": "1.1.1",
 	"minAppVersion": "0.15.0",
 	"description": "Automatically manages and updates 'created' and 'modified' timestamps in the frontmatter of your notes",
 	"author": "LighthouseDino",
