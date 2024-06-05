@@ -9,14 +9,16 @@ import {
 	Setting,
 } from "obsidian";
 
-interface UpdateModifiedTimeSettings {
+interface FrontMatterTimestampsSettings {
 	debug: boolean;
 	autoUpdate: boolean;
+	autoAddTimestamps: boolean;
 }
 
-const DEFAULT_SETTINGS: UpdateModifiedTimeSettings = {
+const DEFAULT_SETTINGS: FrontMatterTimestampsSettings = {
 	debug: false,
 	autoUpdate: true,
+	autoAddTimestamps: true,
 };
 
 async function calculateChecksum(file: TFile, vault: Vault): Promise<string> {
@@ -30,15 +32,15 @@ async function calculateChecksum(file: TFile, vault: Vault): Promise<string> {
 	return hashHex;
 }
 
-export default class UpdateModifiedTimePlugin extends Plugin {
-	settings: UpdateModifiedTimeSettings;
+export default class FrontMatterTimestampsPlugin extends Plugin {
+	settings: FrontMatterTimestampsSettings;
 	private lastActiveFile: TFile | null = null;
 	private lastChecksum: string | null = null;
 
 	async onload() {
 		await this.loadSettings();
 
-		this.addSettingTab(new UpdateModifiedTimeSettingTab(this.app, this));
+		this.addSettingTab(new FrontMatterTimestampsSettingTab(this.app, this));
 
 		// Register the command to manually update modified time
 		this.addCommand({
@@ -67,6 +69,15 @@ export default class UpdateModifiedTimePlugin extends Plugin {
 			this.registerEvent(
 				this.app.workspace.on("file-open", () =>
 					this.handleFileChange()
+				)
+			);
+		}
+
+		// Register event to handle new file creation
+		if (this.settings.autoAddTimestamps) {
+			this.registerEvent(
+				this.app.vault.on("create", (file) =>
+					this.handleFileCreate(file)
 				)
 			);
 		}
@@ -103,9 +114,37 @@ export default class UpdateModifiedTimePlugin extends Plugin {
 				: null;
 	}
 
+	async handleFileCreate(file: TFile) {
+		if (file.extension !== "md") {
+			return;
+		}
+
+		const currentTime = moment().format("YYYY-MM-DDTHH:mm:ssZ");
+
+		try {
+			await this.app.fileManager.processFrontMatter(
+				file,
+				(frontmatter) => {
+					if (!frontmatter.created) {
+						frontmatter.created = currentTime;
+					}
+					frontmatter.modified = currentTime;
+				}
+			);
+
+			if (this.settings.debug) {
+				console.log(`Timestamps added to new file ${file.path}`);
+			}
+		} catch (error) {
+			console.error(
+				`Error adding timestamps to new file ${file.path}`,
+				error
+			);
+		}
+	}
+
 	async updateModifiedTime(file: TFile | null) {
 		if (!file || !file.path) {
-			console.error("No valid file provided, skipping update.");
 			return;
 		}
 
@@ -154,10 +193,10 @@ export default class UpdateModifiedTimePlugin extends Plugin {
 	}
 }
 
-class UpdateModifiedTimeSettingTab extends PluginSettingTab {
-	plugin: UpdateModifiedTimePlugin;
+class FrontMatterTimestampsSettingTab extends PluginSettingTab {
+	plugin: FrontMatterTimestampsPlugin;
 
-	constructor(app: App, plugin: UpdateModifiedTimePlugin) {
+	constructor(app: App, plugin: FrontMatterTimestampsPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -175,6 +214,20 @@ class UpdateModifiedTimeSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.autoUpdate)
 					.onChange(async (value) => {
 						this.plugin.settings.autoUpdate = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Automatic timestamps")
+			.setDesc(
+				"Automatically add created and modified timestamps to new notes"
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.autoAddTimestamps)
+					.onChange(async (value) => {
+						this.plugin.settings.autoAddTimestamps = value;
 						await this.plugin.saveSettings();
 					})
 			);

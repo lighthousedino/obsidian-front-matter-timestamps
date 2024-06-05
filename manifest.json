@@ -1,9 +1,9 @@
 {
-	"id": "update-modified-time",
-	"name": "Update Modified Time",
-	"version": "1.0.1",
+	"id": "front-matter-timestamps",
+	"name": "Front Matter Timestamps",
+	"version": "1.1.0",
 	"minAppVersion": "0.15.0",
-	"description": "Update the modified time in YAML front matter when a file is changed.",
+	"description": "Automatically manages and updates 'created' and 'modified' timestamps in the frontmatter of your notes",
 	"author": "LighthouseDino",
 	"authorUrl": "https://github.com/lighthousedino",
 	"isDesktopOnly": false
