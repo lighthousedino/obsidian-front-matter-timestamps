@@ -87,12 +87,10 @@ export default class UpdateModifiedTimePlugin extends Plugin {
 					await this.updateModifiedTime(this.lastActiveFile);
 				}
 			} catch (error) {
-				if (this.settings.debug) {
-					console.log(
-						`Error checking checksum for ${this.lastActiveFile.path}:`,
-						error
-					);
-				}
+				console.error(
+					`Error checking checksum for ${this.lastActiveFile.path}:`,
+					error
+				);
 			}
 		}
 
@@ -106,9 +104,7 @@ export default class UpdateModifiedTimePlugin extends Plugin {
 
 	async updateModifiedTime(file: TFile | null) {
 		if (!file || !file.path) {
-			if (this.settings.debug) {
-				console.log("No valid file provided, skipping update.");
-			}
+			console.error("No valid file provided, skipping update.");
 			return;
 		}
 
@@ -133,12 +129,10 @@ export default class UpdateModifiedTimePlugin extends Plugin {
 				console.log("File frontmatter updated");
 			}
 		} catch (error) {
-			if (this.settings.debug) {
-				console.error(
-					`Error updating frontmatter for file ${file.path}`,
-					error
-				);
-			}
+			console.error(
+				`Error updating frontmatter for file ${file.path}`,
+				error
+			);
 		}
 	}
 
