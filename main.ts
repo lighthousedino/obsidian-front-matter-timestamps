@@ -19,9 +19,8 @@ const DEFAULT_SETTINGS: UpdateModifiedTimeSettings = {
 };
 
 async function calculateChecksum(file: TFile, vault: any): Promise<string> {
-	const fileContent = await vault.readBinary(file);
-	const textContent = new TextDecoder("utf-8").decode(fileContent);
-	const buffer = new TextEncoder().encode(textContent);
+	const fileContent = await vault.read(file);
+	const buffer = new TextEncoder().encode(fileContent);
 	const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
 	const hashArray = Array.from(new Uint8Array(hashBuffer));
 	const hashHex = hashArray
@@ -115,8 +114,7 @@ export default class UpdateModifiedTimePlugin extends Plugin {
 
 		try {
 			// Try reading the file to ensure it exists
-			const fileContent = await this.app.vault.readBinary(file);
-			const textContent = new TextDecoder("utf-8").decode(fileContent);
+			const fileContent = await this.app.vault.read(file);
 
 			if (this.settings.debug) {
 				console.log("File content read successfully");
@@ -130,7 +128,7 @@ export default class UpdateModifiedTimePlugin extends Plugin {
 			}
 
 			const yamlRegex = /^---\n([\s\S]*?)\n---/;
-			const match = textContent.match(yamlRegex);
+			const match = fileContent.match(yamlRegex);
 			const currentTime = moment().format("YYYY-MM-DDTHH:mm:ssZ");
 
 			if (!match) {
@@ -162,7 +160,7 @@ export default class UpdateModifiedTimePlugin extends Plugin {
 			}
 
 			if (updatedYaml) {
-				const newFileContent = textContent.replace(
+				const newFileContent = fileContent.replace(
 					yamlRegex,
 					`---\n${newYamlContent}\n---`
 				);
@@ -171,10 +169,7 @@ export default class UpdateModifiedTimePlugin extends Plugin {
 					console.log("New file content prepared");
 				}
 
-				await this.app.vault.modifyBinary(
-					file,
-					new TextEncoder().encode(newFileContent)
-				);
+				await this.app.vault.modify(file, newFileContent);
 				if (this.settings.debug) {
 					console.log("File content updated and saved");
 				}
