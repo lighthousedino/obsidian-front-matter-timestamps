@@ -1,11 +1,10 @@
 {
 	"id": "update-modified-time",
 	"name": "Update Modified Time",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"minAppVersion": "0.15.0",
-	"description": "Updates the modified time in YAML front matter when a file is changed.",
+	"description": "Update the modified time in YAML front matter when a file is changed.",
 	"author": "LighthouseDino",
-	"authorUrl": "",
-	"fundingUrl": "",
+	"authorUrl": "https://github.com/lighthousedino",
 	"isDesktopOnly": false
 }
