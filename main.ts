@@ -72,23 +72,21 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 				)
 			);
 		}
-
-		// Register event to handle new file creation
-		if (this.settings.autoAddTimestamps) {
-			this.registerEvent(
-				this.app.vault.on("create", (file) => {
-					if (file instanceof TFile) {
-						this.handleFileCreate(file);
-					}
-				})
-			);
-		}
 	}
 
 	async handleFileChange() {
 		const markdownView =
 			this.app.workspace.getActiveViewOfType(MarkdownView);
 		const currentFile = markdownView ? markdownView.file : null;
+
+		if (currentFile) {
+			const isFileNew = currentFile.stat.ctime === currentFile.stat.mtime;
+			const isFileEmpty = currentFile.stat.size === 0;
+
+			if (isFileNew && isFileEmpty && this.settings.autoAddTimestamps) {
+				await this.handleFileCreate(currentFile);
+			}
+		}
 
 		// Check if the last active file exists before calculating checksum
 		if (this.lastActiveFile && this.lastActiveFile.path) {
