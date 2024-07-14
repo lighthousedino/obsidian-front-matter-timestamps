@@ -13,12 +13,16 @@ interface FrontMatterTimestampsSettings {
 	debug: boolean;
 	autoUpdate: boolean;
 	autoAddTimestamps: boolean;
+	createdPropertyName: string;
+	modifiedPropertyName: string;
 }
 
 const DEFAULT_SETTINGS: FrontMatterTimestampsSettings = {
 	debug: false,
 	autoUpdate: true,
 	autoAddTimestamps: true,
+	createdPropertyName: "created",
+	modifiedPropertyName: "modified",
 };
 
 async function calculateChecksum(file: TFile, vault: Vault): Promise<string> {
@@ -126,9 +130,11 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 				file,
 				(frontmatter) => {
 					if (!frontmatter.created) {
-						frontmatter.created = currentTime;
+						frontmatter[this.settings.createdPropertyName] =
+							currentTime;
 					}
-					frontmatter.modified = currentTime;
+					frontmatter[this.settings.modifiedPropertyName] =
+						currentTime;
 				}
 			);
 
@@ -161,7 +167,8 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 			await this.app.fileManager.processFrontMatter(
 				file,
 				(frontmatter) => {
-					frontmatter.modified = currentTime;
+					frontmatter[this.settings.modifiedPropertyName] =
+						currentTime;
 				}
 			);
 
@@ -228,6 +235,31 @@ class FrontMatterTimestampsSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.autoAddTimestamps)
 					.onChange(async (value) => {
 						this.plugin.settings.autoAddTimestamps = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Created property name")
+			.setDesc("Customise the property name for creation timestamp")
+			.addText((text) =>
+				text
+					.setValue(this.plugin.settings.createdPropertyName)
+					.onChange(async (value) => {
+						this.plugin.settings.createdPropertyName = value.trim();
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Modified property name")
+			.setDesc("Customise the property name for modification timestamp")
+			.addText((text) =>
+				text
+					.setValue(this.plugin.settings.modifiedPropertyName)
+					.onChange(async (value) => {
+						this.plugin.settings.modifiedPropertyName =
+							value.trim();
 						await this.plugin.saveSettings();
 					})
 			);
