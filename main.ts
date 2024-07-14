@@ -177,7 +177,7 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 	}
 
 	onunload() {
-		console.log("Unloading Update Modified Time plugin");
+		console.log("Unloading Front Matter Timestamps plugin");
 	}
 
 	async loadSettings() {
