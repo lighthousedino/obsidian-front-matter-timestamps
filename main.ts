@@ -137,10 +137,8 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 			await this.app.fileManager.processFrontMatter(
 				file,
 				(frontmatter) => {
-					if (!frontmatter.created) {
-						frontmatter[this.settings.createdPropertyName] =
-							currentTime;
-					}
+					frontmatter[this.settings.createdPropertyName] =
+						currentTime;
 					frontmatter[this.settings.modifiedPropertyName] =
 						currentTime;
 				}
