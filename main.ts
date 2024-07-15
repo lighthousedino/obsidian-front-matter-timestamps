@@ -85,19 +85,20 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 			this.app.workspace.getActiveViewOfType(MarkdownView);
 		const currentFile = markdownView ? markdownView.file : null;
 
-		if (currentFile) {
-			const isFileNew = currentFile.stat.ctime === currentFile.stat.mtime;
+		if (!currentFile) {
+			return; // Exit if there is no current file to process
+		}
 
-			let isFileEmpty = true;
-			if (!this.settings.allowNonEmptyNewFile) {
-				const fileContent = await this.app.vault.read(currentFile);
-				isFileEmpty =
-					currentFile.stat.size === 0 || !fileContent.trim();
-			}
+		const isFileNew = currentFile.stat.ctime === currentFile.stat.mtime;
 
-			if (isFileNew && isFileEmpty && this.settings.autoAddTimestamps) {
-				await this.handleFileCreate(currentFile);
-			}
+		let isFileEmpty = true;
+		if (!this.settings.allowNonEmptyNewFile) {
+			const fileContent = await this.app.vault.read(currentFile);
+			isFileEmpty = currentFile.stat.size === 0 || !fileContent.trim();
+		}
+
+		if (isFileNew && isFileEmpty && this.settings.autoAddTimestamps) {
+			await this.handleFileCreate(currentFile);
 		}
 
 		// Check if the last active file exists before calculating checksum
@@ -120,10 +121,9 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 
 		// Update the last active file and checksum
 		this.lastActiveFile = currentFile;
-		this.lastChecksum =
-			currentFile && currentFile.path
-				? await calculateChecksum(currentFile, this.app.vault)
-				: null;
+		this.lastChecksum = currentFile.path
+			? await calculateChecksum(currentFile, this.app.vault)
+			: null;
 	}
 
 	async handleFileCreate(file: TFile) {
