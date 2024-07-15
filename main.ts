@@ -89,7 +89,12 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 			return; // Exit if there is no current file to process
 		}
 
-		const isFileNew = currentFile.stat.ctime === currentFile.stat.mtime;
+		const NEW_FILE_TOLERANCE = 0.1; // seconds
+		const ctime = moment(currentFile.stat.ctime);
+		const mtime = moment(currentFile.stat.mtime);
+		const timeDifference = mtime.diff(ctime, "seconds");
+
+		const isFileNew = timeDifference <= NEW_FILE_TOLERANCE;
 
 		let isFileEmpty = true;
 		if (!this.settings.allowNonEmptyNewFile) {
