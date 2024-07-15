@@ -15,6 +15,7 @@ interface FrontMatterTimestampsSettings {
 	autoAddTimestamps: boolean;
 	createdPropertyName: string;
 	modifiedPropertyName: string;
+	allowNonEmptyNewFile: boolean;
 }
 
 const DEFAULT_SETTINGS: FrontMatterTimestampsSettings = {
@@ -23,6 +24,7 @@ const DEFAULT_SETTINGS: FrontMatterTimestampsSettings = {
 	autoAddTimestamps: true,
 	createdPropertyName: "created",
 	modifiedPropertyName: "modified",
+	allowNonEmptyNewFile: false,
 };
 
 async function calculateChecksum(file: TFile, vault: Vault): Promise<string> {
@@ -85,7 +87,13 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 
 		if (currentFile) {
 			const isFileNew = currentFile.stat.ctime === currentFile.stat.mtime;
-			const isFileEmpty = currentFile.stat.size === 0;
+
+			let isFileEmpty = true;
+			if (!this.settings.allowNonEmptyNewFile) {
+				const fileContent = await this.app.vault.read(currentFile);
+				isFileEmpty =
+					currentFile.stat.size === 0 || !fileContent.trim();
+			}
 
 			if (isFileNew && isFileEmpty && this.settings.autoAddTimestamps) {
 				await this.handleFileCreate(currentFile);
@@ -260,6 +268,20 @@ class FrontMatterTimestampsSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.modifiedPropertyName =
 							value.trim();
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Allow non-empty file to be treated as new note")
+			.setDesc(
+				"Newly created file does not have to be empty to add timestamps. Enable if using plugins that automatically add content to new notes (e.g. Daily Notes with a template)."
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.allowNonEmptyNewFile)
+					.onChange(async (value) => {
+						this.plugin.settings.allowNonEmptyNewFile = value;
 						await this.plugin.saveSettings();
 					})
 			);
