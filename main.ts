@@ -16,6 +16,7 @@ interface FrontMatterTimestampsSettings {
 	createdPropertyName: string;
 	modifiedPropertyName: string;
 	allowNonEmptyNewFile: boolean;
+	excludedFolders: string[];
 }
 
 const DEFAULT_SETTINGS: FrontMatterTimestampsSettings = {
@@ -25,6 +26,7 @@ const DEFAULT_SETTINGS: FrontMatterTimestampsSettings = {
 	createdPropertyName: "created",
 	modifiedPropertyName: "modified",
 	allowNonEmptyNewFile: false,
+	excludedFolders: [],
 };
 
 async function calculateChecksum(file: TFile, vault: Vault): Promise<string> {
@@ -42,6 +44,21 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 	settings: FrontMatterTimestampsSettings;
 	private lastActiveFile: TFile | null = null;
 	private lastChecksum: string | null = null;
+	private isPathExcluded(filePath: string): boolean {
+		// Immediate return if there are no excluded folders
+		if (this.settings.excludedFolders.length === 0) {
+			return false;
+		}
+
+		const pathSegments = filePath.split("/");
+		// Generate all possible subpaths to compare against excluded folders
+		const fullPathChecks = pathSegments.map((_, index) =>
+			pathSegments.slice(0, index + 1).join("/")
+		);
+		return this.settings.excludedFolders.some((excludedPath) =>
+			fullPathChecks.includes(excludedPath)
+		);
+	}
 
 	async onload() {
 		await this.loadSettings();
@@ -88,6 +105,8 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 		if (!currentFile) {
 			return; // Exit if there is no current file to process
 		}
+
+		if (!currentFile || this.isPathExcluded(currentFile.path)) return;
 
 		const NEW_FILE_TOLERANCE = 0.1; // seconds
 		const ctime = moment(currentFile.stat.ctime);
@@ -165,6 +184,8 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 			return;
 		}
 
+		if (!file || !file.path || this.isPathExcluded(file.path)) return;
+
 		try {
 			if (file.extension !== "md") {
 				if (this.settings.debug) {
@@ -221,7 +242,6 @@ class FrontMatterTimestampsSettingTab extends PluginSettingTab {
 
 	display(): void {
 		const { containerEl } = this;
-
 		containerEl.empty();
 
 		new Setting(containerEl)
@@ -288,6 +308,75 @@ class FrontMatterTimestampsSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					})
 			);
+
+		const excludedFoldersSetting = new Setting(containerEl)
+			.setName("Excluded folders")
+			.setDesc(
+				"Manage folders that are excluded from timestamp updates. You can add subfolder paths as needed. For example, 'folder/subfolder' will exclude 'subfolder' but not 'folder'."
+			);
+
+		const listContainer = excludedFoldersSetting.settingEl.createDiv();
+
+		const updateFolderList = () => {
+			listContainer.empty();
+			this.plugin.settings.excludedFolders.forEach((folder, index) => {
+				const folderDiv = listContainer.createDiv("folder-entry");
+				folderDiv.style.display = "flex";
+				folderDiv.style.alignItems = "center";
+				folderDiv.style.justifyContent = "space-between";
+				folderDiv.style.marginBottom = "10px";
+
+				const folderNameSpan = folderDiv.createSpan({ text: folder });
+				folderNameSpan.style.flex = "1";
+				folderNameSpan.style.marginRight = "20px";
+
+				const removeButton = folderDiv.createEl("button", {
+					text: "Remove",
+				});
+				removeButton.onclick = async () => {
+					this.plugin.settings.excludedFolders.splice(index, 1);
+					await this.plugin.saveSettings();
+					updateFolderList();
+				};
+			});
+
+			const addButtonDiv = listContainer.createDiv();
+			addButtonDiv.style.display = "flex";
+			addButtonDiv.style.alignItems = "center";
+
+			const addInput = addButtonDiv.createEl("input", {
+				type: "text",
+				placeholder: "Add new folder path...",
+			});
+			addInput.style.flex = "1";
+			addInput.style.marginRight = "10px";
+
+			addInput.addEventListener("keypress", async (event) => {
+				if (event.key === "Enter" && addInput.value.trim().length > 0) {
+					this.plugin.settings.excludedFolders.push(
+						addInput.value.trim()
+					);
+					await this.plugin.saveSettings();
+					addInput.value = "";
+					updateFolderList();
+					event.preventDefault();
+				}
+			});
+
+			const addButton = addButtonDiv.createEl("button", { text: "Add" });
+			addButton.onclick = async () => {
+				if (addInput.value.trim().length > 0) {
+					this.plugin.settings.excludedFolders.push(
+						addInput.value.trim()
+					);
+					await this.plugin.saveSettings();
+					addInput.value = "";
+					updateFolderList();
+				}
+			};
+		};
+
+		updateFolderList();
 
 		new Setting(containerEl)
 			.setName("Debug mode")
