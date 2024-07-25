@@ -108,7 +108,7 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 
 		if (!currentFile || this.isPathExcluded(currentFile.path)) return;
 
-		const NEW_FILE_TOLERANCE = 0.1; // seconds
+		const NEW_FILE_TOLERANCE = 0.3; // seconds
 		const ctime = moment(currentFile.stat.ctime);
 		const mtime = moment(currentFile.stat.mtime);
 		const timeDifference = mtime.diff(ctime, "seconds");
