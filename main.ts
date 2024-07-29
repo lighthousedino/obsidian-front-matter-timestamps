@@ -16,6 +16,7 @@ interface FrontMatterTimestampsSettings {
 	createdPropertyName: string;
 	modifiedPropertyName: string;
 	allowNonEmptyNewFile: boolean;
+	delayAddingTimestamps: number;
 	excludedFolders: string[];
 }
 
@@ -26,6 +27,7 @@ const DEFAULT_SETTINGS: FrontMatterTimestampsSettings = {
 	createdPropertyName: "created",
 	modifiedPropertyName: "modified",
 	allowNonEmptyNewFile: false,
+	delayAddingTimestamps: 1000,
 	excludedFolders: [],
 };
 
@@ -158,6 +160,10 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 		const currentTime = moment().format("YYYY-MM-DDTHH:mm:ssZ");
 
 		try {
+			await new Promise((resolve) =>
+				setTimeout(resolve, this.settings.delayAddingTimestamps)
+			);
+
 			await this.app.fileManager.processFrontMatter(
 				file,
 				(frontmatter) => {
@@ -195,6 +201,10 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 			}
 
 			const currentTime = moment().format("YYYY-MM-DDTHH:mm:ssZ");
+
+			await new Promise((resolve) =>
+				setTimeout(resolve, this.settings.delayAddingTimestamps)
+			);
 
 			await this.app.fileManager.processFrontMatter(
 				file,
@@ -298,7 +308,7 @@ class FrontMatterTimestampsSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Allow non-empty file to be treated as new note")
 			.setDesc(
-				"Newly created file does not have to be empty to add timestamps. Enable if using plugins that automatically add content to new notes (e.g. Daily Notes with a template)."
+				"Newly created file does not have to be empty to add timestamps. Enable if using plugins that automatically add content to new notes (Templater, Daily Notes, etc.)."
 			)
 			.addToggle((toggle) =>
 				toggle
@@ -306,6 +316,25 @@ class FrontMatterTimestampsSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.allowNonEmptyNewFile = value;
 						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Delay adding timestamps to new notes")
+			.setDesc(
+				"Delay in milliseconds before adding timestamps to new notes to avoid conflicts with other plugins that also add content to new notes. The default value of 1000 milliseconds should be sufficient for most cases, but you can adjust it as needed. Set to 0 to disable the delay if you are not experiencing any issues or not using such plugins."
+			)
+			.addText((text) =>
+				text
+					.setValue(
+						this.plugin.settings.delayAddingTimestamps.toString()
+					)
+					.onChange(async (value) => {
+						const delay = parseInt(value.trim(), 10);
+						if (!isNaN(delay)) {
+							this.plugin.settings.delayAddingTimestamps = delay;
+							await this.plugin.saveSettings();
+						}
 					})
 			);
 
