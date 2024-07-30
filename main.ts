@@ -102,11 +102,6 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 					this.handleFileChange()
 				)
 			);
-			this.registerEvent(
-				this.app.workspace.on("file-open", () =>
-					this.handleFileChange()
-				)
-			);
 		}
 	}
 
@@ -115,18 +110,45 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 			this.app.workspace.getActiveViewOfType(MarkdownView);
 		const currentFile = markdownView ? markdownView.file : null;
 
+		if (this.settings.debug) {
+			console.log("handleFileChange called");
+		}
+
+		// Handle case where no file is currently active (closed or switched to an empty tab)
 		if (!currentFile) {
+			if (
+				this.lastActiveFile &&
+				!this.isPathExcluded(this.lastActiveFile.path)
+			) {
+				try {
+					const currentChecksum = await calculateChecksum(
+						this.lastActiveFile,
+						this.app.vault
+					);
+					if (this.lastChecksum !== currentChecksum) {
+						await this.updateModifiedTime(this.lastActiveFile);
+					}
+				} catch (error) {
+					console.error(
+						`Error checking checksum for ${this.lastActiveFile.path}:`,
+						error
+					);
+				}
+			}
+			this.lastActiveFile = null;
+			this.lastChecksum = null;
 			return;
 		}
 
-		if (!currentFile || this.isPathExcluded(currentFile.path)) return;
+		// Skip if the path is excluded
+		if (this.isPathExcluded(currentFile.path)) return;
 
-		const NEW_FILE_TOLERANCE = 0.3; // seconds
+		// Determine if the file is new
+		const newFileTolerance = 0.3; // seconds
 		const ctime = moment(currentFile.stat.ctime);
 		const mtime = moment(currentFile.stat.mtime);
 		const timeDifference = mtime.diff(ctime, "seconds");
-
-		const isFileNew = timeDifference <= NEW_FILE_TOLERANCE;
+		const isFileNew = timeDifference <= newFileTolerance;
 
 		let isFileEmpty = true;
 		if (!this.settings.allowNonEmptyNewFile) {
@@ -134,18 +156,22 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 			isFileEmpty = currentFile.stat.size === 0 || !fileContent.trim();
 		}
 
+		// Handle newly created and empty files
 		if (isFileNew && isFileEmpty && this.settings.autoAddTimestamps) {
 			await this.handleFileCreate(currentFile);
 		}
 
-		// Check if the last active file exists before calculating checksum
-		if (this.lastActiveFile && this.lastActiveFile.path) {
+		// Check if there has been a switch to a new file and it is different from the last one
+		if (
+			this.lastActiveFile &&
+			this.lastActiveFile.path !== currentFile.path
+		) {
 			try {
-				const currentChecksum = await calculateChecksum(
+				const lastFileChecksum = await calculateChecksum(
 					this.lastActiveFile,
 					this.app.vault
 				);
-				if (this.lastChecksum !== currentChecksum) {
+				if (this.lastChecksum !== lastFileChecksum) {
 					await this.updateModifiedTime(this.lastActiveFile);
 				}
 			} catch (error) {
@@ -156,11 +182,17 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 			}
 		}
 
-		// Update the last active file and checksum
-		this.lastActiveFile = currentFile;
-		this.lastChecksum = currentFile.path
-			? await calculateChecksum(currentFile, this.app.vault)
-			: null;
+		// Update the last active file and checksum if the current file has changed
+		if (
+			!this.lastActiveFile ||
+			this.lastActiveFile.path !== currentFile.path
+		) {
+			this.lastActiveFile = currentFile;
+			this.lastChecksum = await calculateChecksum(
+				currentFile,
+				this.app.vault
+			);
+		}
 	}
 
 	async handleFileCreate(file: TFile) {
