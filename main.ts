@@ -9,8 +9,16 @@ import {
 	Setting,
 } from "obsidian";
 
+declare module "obsidian" {
+	interface App {
+		commands: {
+			executeCommandById(customCommand: string): unknown;
+			listCommands(): { id: string; name: string }[];
+		};
+	}
+}
+
 interface FrontMatterTimestampsSettings {
-	debug: boolean;
 	autoUpdate: boolean;
 	autoAddTimestamps: boolean;
 	createdPropertyName: string;
@@ -18,10 +26,11 @@ interface FrontMatterTimestampsSettings {
 	allowNonEmptyNewFile: boolean;
 	delayAddingTimestamps: number;
 	excludedFolders: string[];
+	customCommand: string;
+	debug: boolean;
 }
 
 const DEFAULT_SETTINGS: FrontMatterTimestampsSettings = {
-	debug: false,
 	autoUpdate: true,
 	autoAddTimestamps: true,
 	createdPropertyName: "created",
@@ -29,6 +38,8 @@ const DEFAULT_SETTINGS: FrontMatterTimestampsSettings = {
 	allowNonEmptyNewFile: false,
 	delayAddingTimestamps: 1000,
 	excludedFolders: [],
+	customCommand: "",
+	debug: false,
 };
 
 async function calculateChecksum(file: TFile, vault: Vault): Promise<string> {
@@ -105,7 +116,7 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 		const currentFile = markdownView ? markdownView.file : null;
 
 		if (!currentFile) {
-			return; // Exit if there is no current file to process
+			return;
 		}
 
 		if (!currentFile || this.isPathExcluded(currentFile.path)) return;
@@ -216,6 +227,12 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 
 			if (this.settings.debug) {
 				console.log("File frontmatter updated");
+			}
+
+			if (this.settings.customCommand) {
+				this.app.commands.executeCommandById(
+					this.settings.customCommand
+				);
 			}
 		} catch (error) {
 			console.error(
@@ -406,6 +423,35 @@ class FrontMatterTimestampsSettingTab extends PluginSettingTab {
 		};
 
 		updateFolderList();
+
+		const commandSetting = new Setting(containerEl)
+			.setName("Execute command after update")
+			.setDesc(
+				"Select a command to run after the modified time is successfully updated"
+			);
+
+		const select = commandSetting.controlEl.createEl("select");
+
+		let noneOption = select.createEl("option", { text: "None" });
+		noneOption.value = "";
+		if (this.plugin.settings.customCommand === "") {
+			noneOption.selected = true;
+		}
+
+		this.app.commands
+			.listCommands()
+			.forEach((command: { name: any; id: string }) => {
+				let option = select.createEl("option", { text: command.name });
+				option.value = command.id;
+				if (command.id === this.plugin.settings.customCommand) {
+					option.selected = true;
+				}
+			});
+
+		select.addEventListener("change", async () => {
+			this.plugin.settings.customCommand = select.value;
+			await this.plugin.saveSettings();
+		});
 
 		new Setting(containerEl)
 			.setName("Debug mode")
