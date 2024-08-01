@@ -121,12 +121,18 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 				!this.isPathExcluded(this.lastActiveFile.path)
 			) {
 				try {
-					const currentChecksum = await calculateChecksum(
-						this.lastActiveFile,
-						this.app.vault
+					// Check if the last active file still exists
+					const fileExists = await this.app.vault.adapter.exists(
+						this.lastActiveFile.path
 					);
-					if (this.lastChecksum !== currentChecksum) {
-						await this.updateModifiedTime(this.lastActiveFile);
+					if (fileExists) {
+						const currentChecksum = await calculateChecksum(
+							this.lastActiveFile,
+							this.app.vault
+						);
+						if (this.lastChecksum !== currentChecksum) {
+							await this.updateModifiedTime(this.lastActiveFile);
+						}
 					}
 				} catch (error) {
 					console.error(
@@ -167,12 +173,18 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 			this.lastActiveFile.path !== currentFile.path
 		) {
 			try {
-				const lastFileChecksum = await calculateChecksum(
-					this.lastActiveFile,
-					this.app.vault
+				// Check if the last active file still exists
+				const lastFileExists = await this.app.vault.adapter.exists(
+					this.lastActiveFile.path
 				);
-				if (this.lastChecksum !== lastFileChecksum) {
-					await this.updateModifiedTime(this.lastActiveFile);
+				if (lastFileExists) {
+					const lastFileChecksum = await calculateChecksum(
+						this.lastActiveFile,
+						this.app.vault
+					);
+					if (this.lastChecksum !== lastFileChecksum) {
+						await this.updateModifiedTime(this.lastActiveFile);
+					}
 				}
 			} catch (error) {
 				console.error(
