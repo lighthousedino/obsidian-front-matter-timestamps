@@ -443,9 +443,10 @@ class FrontMatterTimestampsSettingTab extends PluginSettingTab {
 
 			addInput.addEventListener("keypress", async (event) => {
 				if (event.key === "Enter" && addInput.value.trim().length > 0) {
-					this.plugin.settings.excludedFolders.push(
-						addInput.value.trim()
-					);
+					const trimmedValue = addInput.value
+						.trim()
+						.replace(/\/+$/, "");
+					this.plugin.settings.excludedFolders.push(trimmedValue);
 					await this.plugin.saveSettings();
 					addInput.value = "";
 					updateFolderList();
@@ -456,9 +457,10 @@ class FrontMatterTimestampsSettingTab extends PluginSettingTab {
 			const addButton = addButtonDiv.createEl("button", { text: "Add" });
 			addButton.onclick = async () => {
 				if (addInput.value.trim().length > 0) {
-					this.plugin.settings.excludedFolders.push(
-						addInput.value.trim()
-					);
+					const trimmedValue = addInput.value
+						.trim()
+						.replace(/\/+$/, "");
+					this.plugin.settings.excludedFolders.push(trimmedValue);
 					await this.plugin.saveSettings();
 					addInput.value = "";
 					updateFolderList();
