@@ -23,6 +23,7 @@ interface FrontMatterTimestampsSettings {
 	autoAddTimestamps: boolean;
 	createdPropertyName: string;
 	modifiedPropertyName: string;
+	dateFormat: string;
 	allowNonEmptyNewFile: boolean;
 	delayAddingTimestamps: number;
 	excludedFolders: string[];
@@ -35,6 +36,7 @@ const DEFAULT_SETTINGS: FrontMatterTimestampsSettings = {
 	autoAddTimestamps: true,
 	createdPropertyName: "created",
 	modifiedPropertyName: "modified",
+	dateFormat: "YYYY-MM-DDTHH:mm:ssZ",
 	allowNonEmptyNewFile: false,
 	delayAddingTimestamps: 1000,
 	excludedFolders: [],
@@ -212,7 +214,7 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 			return;
 		}
 
-		const currentTime = moment().format("YYYY-MM-DDTHH:mm:ssZ");
+		const currentTime = moment().format(this.settings.dateFormat);
 
 		try {
 			await new Promise((resolve) =>
@@ -255,7 +257,7 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 				return;
 			}
 
-			const currentTime = moment().format("YYYY-MM-DDTHH:mm:ssZ");
+			const currentTime = moment().format(this.settings.dateFormat);
 
 			await new Promise((resolve) =>
 				setTimeout(resolve, this.settings.delayAddingTimestamps)
@@ -365,6 +367,37 @@ class FrontMatterTimestampsSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					})
 			);
+
+		new Setting(containerEl)
+			.setName("Date and time format")
+			.setDesc(
+				"Specify the desired date and time format using Moment.js tokens. Example: YYYY-MM-DDTHH:mm"
+			)
+			.addText((text) => {
+				text.setPlaceholder("YYYY-MM-DDTHH:mm:ssZ")
+					.setValue(this.plugin.settings.dateFormat)
+					.onChange(async (value) => {
+						this.plugin.settings.dateFormat =
+							value.trim() || DEFAULT_SETTINGS.dateFormat;
+						await this.plugin.saveSettings();
+					});
+
+				const resetButton = text.inputEl.parentElement!.createEl(
+					"button",
+					{
+						text: "Reset",
+						cls: "mod-ghost",
+					}
+				);
+
+				resetButton.addEventListener("click", async () => {
+					text.setValue(DEFAULT_SETTINGS.dateFormat);
+
+					this.plugin.settings.dateFormat =
+						DEFAULT_SETTINGS.dateFormat;
+					await this.plugin.saveSettings();
+				});
+			});
 
 		new Setting(containerEl)
 			.setName("Allow non-empty file to be treated as new note")
