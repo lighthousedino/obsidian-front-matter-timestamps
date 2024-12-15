@@ -59,6 +59,9 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 	settings: FrontMatterTimestampsSettings;
 	private lastActiveFile: TFile | null = null;
 	private lastChecksum: string | null = null;
+
+	private pendingNewFiles = new Set<string>();
+
 	private isPathExcluded(filePath: string): boolean {
 		// Immediate return if there are no excluded folders
 		if (this.settings.excludedFolders.length === 0) {
@@ -97,7 +100,25 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 			},
 		});
 
-		// Register event to listen for when the user switches files or closes a file
+		// Listen for new file creations
+		this.registerEvent(
+			this.app.vault.on("create", (file: TFile) => {
+				if (this.settings.debug) {
+					console.log(`File created: ${file.path}`);
+				}
+				// Mark this file as newly created so we can process it after a delay
+				if (
+					this.settings.autoAddTimestamps &&
+					file.extension === "md" &&
+					!this.isPathExcluded(file.path)
+				) {
+					this.pendingNewFiles.add(file.path);
+					this.handleNewFileTimestamps(file);
+				}
+			})
+		);
+
+		// Listen for active leaf changes if autoUpdate is enabled
 		if (this.settings.autoUpdate) {
 			this.registerEvent(
 				this.app.workspace.on("active-leaf-change", () =>
@@ -107,16 +128,84 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 		}
 	}
 
+	private async handleNewFileTimestamps(file: TFile) {
+		const { debug } = this.settings;
+
+		// If not allowed to treat non-empty new files as new, check content
+		if (!this.settings.allowNonEmptyNewFile) {
+			const fileContent = await this.app.vault.read(file);
+			if (fileContent.trim()) {
+				if (debug) {
+					console.log(
+						`File ${file.path} is not empty, skipping initial timestamps.`
+					);
+				}
+				this.pendingNewFiles.delete(file.path);
+				return;
+			}
+		}
+
+		// Wait the configured delay to allow other plugins (e.g. Templater) to do their work
+		if (debug) {
+			console.log(
+				`Waiting ${this.settings.delayAddingTimestamps}ms before adding timestamps to ${file.path}.`
+			);
+		}
+		await new Promise((resolve) =>
+			setTimeout(resolve, this.settings.delayAddingTimestamps)
+		);
+
+		// Check if file still exists after delay
+		if (!(await this.app.vault.adapter.exists(file.path))) {
+			if (debug) {
+				console.log(
+					`File ${file.path} no longer exists after delay, skipping timestamp addition.`
+				);
+			}
+			this.pendingNewFiles.delete(file.path);
+			return;
+		}
+
+		const currentTime = moment().format(this.settings.dateFormat);
+
+		try {
+			await this.app.fileManager.processFrontMatter(
+				file,
+				(frontmatter) => {
+					if (!frontmatter[this.settings.createdPropertyName]) {
+						frontmatter[this.settings.createdPropertyName] =
+							currentTime;
+					}
+					if (!frontmatter[this.settings.modifiedPropertyName]) {
+						frontmatter[this.settings.modifiedPropertyName] =
+							currentTime;
+					}
+				}
+			);
+			if (debug) {
+				console.log(`Timestamps added to new file ${file.path}`);
+			}
+		} catch (error) {
+			console.error(
+				`Error adding timestamps to new file ${file.path}`,
+				error
+			);
+		} finally {
+			this.pendingNewFiles.delete(file.path);
+		}
+	}
+
 	async handleFileChange() {
+		const { debug } = this.settings;
 		const markdownView =
 			this.app.workspace.getActiveViewOfType(MarkdownView);
 		const currentFile = markdownView ? markdownView.file : null;
 
-		if (this.settings.debug) {
+		if (debug) {
 			console.log("handleFileChange called");
 		}
 
-		// Handle case where no file is currently active (closed or switched to an empty tab)
+		// If no active file, check the previously active file for modifications
 		if (!currentFile) {
 			if (
 				this.lastActiveFile &&
@@ -133,8 +222,17 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 							this.app.vault
 						);
 						if (this.lastChecksum !== currentChecksum) {
+							if (debug) {
+								console.log(
+									`File ${this.lastActiveFile.path} changed while inactive, updating modified time.`
+								);
+							}
 							await this.updateModifiedTime(this.lastActiveFile);
 						}
+					} else if (debug) {
+						console.log(
+							`Last active file ${this.lastActiveFile.path} no longer exists.`
+						);
 					}
 				} catch (error) {
 					console.error(
@@ -148,34 +246,14 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 			return;
 		}
 
-		// Skip if the path is excluded
 		if (this.isPathExcluded(currentFile.path)) return;
 
-		// Determine if the file is new
-		const newFileTolerance = 0.3; // seconds
-		const ctime = moment(currentFile.stat.ctime);
-		const mtime = moment(currentFile.stat.mtime);
-		const timeDifference = mtime.diff(ctime, "seconds");
-		const isFileNew = timeDifference <= newFileTolerance;
-
-		let isFileEmpty = true;
-		if (!this.settings.allowNonEmptyNewFile) {
-			const fileContent = await this.app.vault.read(currentFile);
-			isFileEmpty = currentFile.stat.size === 0 || !fileContent.trim();
-		}
-
-		// Handle newly created and empty files
-		if (isFileNew && isFileEmpty && this.settings.autoAddTimestamps) {
-			await this.handleFileCreate(currentFile);
-		}
-
-		// Check if there has been a switch to a new file and it is different from the last one
+		// Check if switching away from another file
 		if (
 			this.lastActiveFile &&
 			this.lastActiveFile.path !== currentFile.path
 		) {
 			try {
-				// Check if the last active file still exists
 				const lastFileExists = await this.app.vault.adapter.exists(
 					this.lastActiveFile.path
 				);
@@ -185,6 +263,11 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 						this.app.vault
 					);
 					if (this.lastChecksum !== lastFileChecksum) {
+						if (debug) {
+							console.log(
+								`File ${this.lastActiveFile.path} changed before switching, updating modified time.`
+							);
+						}
 						await this.updateModifiedTime(this.lastActiveFile);
 					}
 				}
@@ -209,60 +292,41 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 		}
 	}
 
-	async handleFileCreate(file: TFile) {
+	async updateModifiedTime(file: TFile | null) {
+		const { debug } = this.settings;
+		if (!file || !file.path) return;
+		if (this.isPathExcluded(file.path)) return;
+
 		if (file.extension !== "md") {
+			if (debug) {
+				console.log("File is not a markdown file, skipping.");
+			}
 			return;
 		}
 
 		const currentTime = moment().format(this.settings.dateFormat);
 
-		try {
-			await new Promise((resolve) =>
-				setTimeout(resolve, this.settings.delayAddingTimestamps)
-			);
-
-			await this.app.fileManager.processFrontMatter(
-				file,
-				(frontmatter) => {
-					frontmatter[this.settings.createdPropertyName] =
-						currentTime;
-					frontmatter[this.settings.modifiedPropertyName] =
-						currentTime;
-				}
-			);
-
-			if (this.settings.debug) {
-				console.log(`Timestamps added to new file ${file.path}`);
-			}
-		} catch (error) {
-			console.error(
-				`Error adding timestamps to new file ${file.path}`,
-				error
+		if (debug) {
+			console.log(
+				`Updating modified time for ${file.path} after a delay of ${this.settings.delayAddingTimestamps}ms.`
 			);
 		}
-	}
 
-	async updateModifiedTime(file: TFile | null) {
-		if (!file || !file.path) {
+		await new Promise((resolve) =>
+			setTimeout(resolve, this.settings.delayAddingTimestamps)
+		);
+
+		// Check if file still exists after delay
+		if (!(await this.app.vault.adapter.exists(file.path))) {
+			if (debug) {
+				console.log(
+					`File ${file.path} no longer exists after delay, skipping modified time update.`
+				);
+			}
 			return;
 		}
 
-		if (!file || !file.path || this.isPathExcluded(file.path)) return;
-
 		try {
-			if (file.extension !== "md") {
-				if (this.settings.debug) {
-					console.log("File is not a markdown file, skipping.");
-				}
-				return;
-			}
-
-			const currentTime = moment().format(this.settings.dateFormat);
-
-			await new Promise((resolve) =>
-				setTimeout(resolve, this.settings.delayAddingTimestamps)
-			);
-
 			await this.app.fileManager.processFrontMatter(
 				file,
 				(frontmatter) => {
@@ -271,8 +335,8 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 				}
 			);
 
-			if (this.settings.debug) {
-				console.log("File frontmatter updated");
+			if (debug) {
+				console.log(`File frontmatter updated for ${file.path}`);
 			}
 
 			if (this.settings.customCommand) {
