@@ -106,6 +106,17 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 				if (this.settings.debug) {
 					console.log(`File created: ${file.path}`);
 				}
+
+				if (Date.now() - file.stat.ctime > 30000) {
+					// If the note was actually created a long time ago, skip
+					if (this.settings.debug) {
+						console.log(
+							`Skipping timestamps on ${file.path}; ctime is older than 60s.`
+						);
+					}
+					return;
+				}
+
 				// Mark this file as newly created so we can process it after a delay
 				if (
 					this.settings.autoAddTimestamps &&
