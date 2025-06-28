@@ -7,6 +7,7 @@ import {
 	MarkdownView,
 	PluginSettingTab,
 	Setting,
+    TAbstractFile,
 } from "obsidian";
 
 declare module "obsidian" {
@@ -102,10 +103,22 @@ export default class FrontMatterTimestampsPlugin extends Plugin {
 
 		// Listen for new file creations
 		this.registerEvent(
-			this.app.vault.on("create", (file: TFile) => {
+			this.app.vault.on("create", (f: TAbstractFile) => {
 				if (this.settings.debug) {
-					console.log(`File created: ${file.path}`);
+					console.log(`File created: ${f.path}`);
 				}
+
+				// Only process TFile, not TFolder
+				switch (f.constructor) {
+					case TFile:
+						// Handle TFile
+						break;
+					default:
+						// TFolder or other types - ignore
+						return;
+				}
+				
+				const file = f as TFile;
 
 				if (Date.now() - file.stat.ctime > 30000) {
 					// If the note was actually created a long time ago, skip
